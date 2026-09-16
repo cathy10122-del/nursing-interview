@@ -414,7 +414,7 @@ import {
   getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged
 } from "https://www.gstatic.com/firebasejs/12.12.1/firebase-auth.js";
 import {
-  getFirestore, collection, doc, getDoc, getDocs, setDoc, updateDoc, deleteDoc, addDoc, onSnapshot
+  getFirestore, collection, doc, getDoc, getDocs, setDoc, updateDoc, deleteDoc, addDoc, onSnapshot, writeBatch
 } from "https://www.gstatic.com/firebasejs/12.12.1/firebase-firestore.js";
 
 /* =====================================================================
@@ -667,6 +667,23 @@ function runApp(){
     }
   };
 
+  function commitInBatches(ops){
+    // ops: [{type:'set'|'delete', ref, data?}]; chunked to stay under Firestore's 500-per-batch limit
+    var chunks = [];
+    for (var i=0;i<ops.length;i+=450){ chunks.push(ops.slice(i,i+450)); }
+    var chain = Promise.resolve();
+    chunks.forEach(function(chunk){
+      chain = chain.then(function(){
+        var batch = writeBatch(db);
+        chunk.forEach(function(op){
+          if (op.type === "delete") batch.delete(op.ref);
+          else batch.set(op.ref, op.data);
+        });
+        return batch.commit();
+      });
+    });
+    return chain;
+  }
   function ensureSeeded(){
     var verRef = userDoc("meta", "seedVersion");
     return getDoc(verRef).then(function(verSnap){
@@ -674,20 +691,15 @@ function runApp(){
       if (currentVersion >= SEED_VERSION) return Promise.resolve();
       return getDocs(userCol("questions")).then(function(snap){
         var toDelete = snap.docs.filter(function(d){ return d.data().source !== "self"; });
-        var chain = Promise.resolve();
-        toDelete.forEach(function(d){ chain = chain.then(function(){ return deleteDoc(d.ref); }); });
-        return chain;
+        return commitInBatches(toDelete.map(function(d){ return { type:"delete", ref: d.ref }; }));
       }).then(function(){
-        var chain2 = Promise.resolve();
-        SEED_QUESTIONS.forEach(function(q){
-          chain2 = chain2.then(function(){
-            return addDoc(userCol("questions"), {
-              code:q.code, text:q.text, category:q.category, source:"bank",
-              notes:"", practiceCount:0, lastPracticedAt:null, createdAt:new Date().toISOString()
-            });
-          });
+        var ops = SEED_QUESTIONS.map(function(q){
+          return { type:"set", ref: doc(userCol("questions")), data:{
+            code:q.code, text:q.text, category:q.category, source:"bank",
+            notes:"", practiceCount:0, lastPracticedAt:null, createdAt:new Date().toISOString()
+          }};
         });
-        return chain2;
+        return commitInBatches(ops);
       }).then(function(){
         return setDoc(verRef, { version: SEED_VERSION });
       });
@@ -761,6 +773,7 @@ function runApp(){
         img.src = user.photoURL; img.style.display = "inline-block";
       }
       questions = []; currentQuestionId = null; renderedQuestionId = null;
+      examDate = DEFAULT_EXAM_DATE; reminders = DEFAULT_REMINDERS.slice();
       ensureMetaSeeded().then(ensureSeeded).then(function(){
         subscribeAll();
       }).catch(function(e){ console.error("init failed", e); });
@@ -976,10 +989,13 @@ function runApp(){
     document.getElementById("markPracticedBtn").textContent = "✓ 標記已練習（" + (q.practiceCount||0) + " 次）";
     document.getElementById("lastPracticed").textContent = q.lastPracticedAt ? ("上次練習：" + formatDateTime(q.lastPracticedAt)) : "尚未練習過";
 
+    var notesEl = document.getElementById("notesArea");
     if (renderedQuestionId !== currentQuestionId){
-      document.getElementById("notesArea").value = q.notes || "";
+      notesEl.value = q.notes || "";
       renderedQuestionId = currentQuestionId;
       resetTimer();
+    } else if (document.activeElement !== notesEl){
+      notesEl.value = q.notes || "";
     }
   }
 
