@@ -1170,12 +1170,11 @@ function runApp(){
   function renderBank(){
     var container = document.getElementById("bankList");
     var prevOpen = new Set(Array.from(container.querySelectorAll("details[open]")).map(function(d){ return d.dataset.cat; }));
-    var firstRender = container.dataset.rendered !== "1";
     container.innerHTML = "";
     getOrderedCategories().forEach(function(cat){
       var group = el("details", "bank-group");
       group.dataset.cat = cat;
-      group.open = firstRender ? (getMeta(cat).priority === 5) : prevOpen.has(cat);
+      group.open = prevOpen.has(cat);
       var list = questions.filter(function(q){ return q.category === cat; });
       var summary = el("summary");
       var dot = el("span", "cat-dot");
@@ -1194,7 +1193,6 @@ function runApp(){
       list.forEach(function(q){ group.appendChild(buildBankRow(q)); });
       container.appendChild(group);
     });
-    container.dataset.rendered = "1";
   }
   function initAddForm(){
     var form = document.getElementById("addForm");
