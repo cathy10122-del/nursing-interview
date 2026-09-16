@@ -214,6 +214,7 @@
   details.tip-box summary::before{ content:"▸"; font-size:11px; transition: transform .15s ease; }
   details.tip-box[open] summary::before{ transform: rotate(90deg); }
   .tip-body{ font-size:13.5px; line-height:1.75; color: var(--ink-soft); margin: 10px 0 0; background: var(--yellow-tint); border-radius:14px; padding:12px 15px; }
+  .bank-cat-tip{ padding:0 18px 14px; margin-bottom:0; border-top:1px solid rgba(74,50,65,0.08); padding-top:12px; }
 
   .notes-label{ display:block; font-size:12.5px; color:var(--ink-soft); margin-bottom:7px; font-weight:500; }
   textarea#notesArea{ width:100%; min-height:110px; resize:vertical; font-family:inherit; font-size:14px; line-height:1.65; padding:13px 15px; border-radius:16px; border:none; background: var(--bg); color:var(--ink); }
@@ -1168,6 +1169,12 @@ function runApp(){
       summary.appendChild(document.createTextNode(categoryLabel(cat)));
       summary.appendChild(el("span", "cat-count", (stars ? " " + stars : "") + "（" + list.length + "）"));
       group.appendChild(summary);
+      var catTipBox = el("details", "tip-box bank-cat-tip");
+      var catTipSummary = el("summary", null, "這類題目的回答技巧");
+      var catTipBody = el("p", "tip-body", getMeta(cat).tip);
+      catTipBox.appendChild(catTipSummary);
+      catTipBox.appendChild(catTipBody);
+      group.appendChild(catTipBox);
       list.forEach(function(q){ group.appendChild(buildBankRow(q)); });
       container.appendChild(group);
     });
